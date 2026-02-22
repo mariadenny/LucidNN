@@ -2,6 +2,7 @@ import streamlit as st
 import graphviz
 import pandas as pd
 import numpy as np
+import json
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="LucidNN", layout="wide", page_icon="🧠")
@@ -254,4 +255,42 @@ with col_interact:
 # --- TRAIN BUTTON ---
 st.markdown("---")
 if st.button("🚀 Train Model (End-to-End)", type="primary", use_container_width=True):
-    st.success("Configuration Ready! The next step is connecting the C++ backend.")
+    
+    # 1. Prepare the Network Architecture block
+    hidden_layers_config = []
+    for layer in st.session_state.layers:
+        hidden_layers_config.append({
+            "neurons": layer["neurons"],
+            "activation": activ_func.lower()
+        })
+        
+    # 2. Construct the full JSON payload
+    config_data = {
+        "type": "INIT_NETWORK",
+        "network": {
+            "input_size": input_nodes,
+            "hidden_layers": hidden_layers_config,
+            "output_layer": {
+                "neurons": output_nodes,
+                "activation": activ_func.lower()
+            }
+        },
+        "hyperparameters": {
+            "epochs": epochs_setting,
+            "learning_rate": learning_rate
+        },
+        "training_data": {
+            "inputs": user_inputs,
+            "targets": user_targets
+        },
+        "initial_state": st.session_state.network_data
+    }
+    
+    # 3. Write to config.json
+    try:
+        with open("config.json", "w") as f:
+            json.dump(config_data, f, indent=4)
+        st.success("Configuration Ready! `config.json` generated successfully.")
+        st.info("Next step: Run the C++ executable with this config file.")
+    except Exception as e:
+        st.error(f"Failed to generate config.json: {e}")
