@@ -42,10 +42,10 @@ NetworkConfig JsonHandler::parseInitNetwork(const std::string& file_path) {
 
     config.output_layer = {out_neurons, out_type};
 
-    // --- ADDED: Extract Hyperparameters ---
+    // --- Extract Hyperparameters ---
     if (j.contains("hyperparameters")) {
-        config.epochs = j["hyperparameters"]["epochs"];
-        config.learning_rate = j["hyperparameters"]["learning_rate"];
+        config.epochs = j["hyperparameters"].value("epochs", 100);
+        config.learning_rate = j["hyperparameters"].value("learning_rate", 0.01);
     } else {
         config.epochs = 100;
         config.learning_rate = 0.01;
