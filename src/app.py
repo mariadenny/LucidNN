@@ -3,6 +3,7 @@ import graphviz
 import pandas as pd
 import numpy as np
 import json
+import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="LucidNN", layout="wide", page_icon="🧠")
@@ -222,6 +223,9 @@ with col_interact:
 # --- TRAIN BUTTON ---
 st.markdown("---")
 if st.button("🚀 Train Model", type="primary", use_container_width=True):
+    # Clear old results to prevent stale data loading
+    if os.path.exists("results.json"):
+        os.remove("results.json")
     
     # 1. Prepare the Network Architecture block
     hidden_layers_config = []
@@ -231,6 +235,12 @@ if st.button("🚀 Train Model", type="primary", use_container_width=True):
             "activation": activ_func.lower()
         })
         
+    # Create a list of all keys that SHOULD exist right now
+    valid_keys = [f"L{l}_N{n}" for l in range(1, len(topology)) for n in range(topology[l])]
+    
+    # Filter out the ghost data leaving only the valid keys
+    cleaned_network_state = {k: v for k, v in st.session_state.network_data.items() if k in valid_keys}
+
     # 2. Construct the full JSON payload
     config_data = {
         "type": "INIT_NETWORK",
@@ -250,7 +260,7 @@ if st.button("🚀 Train Model", type="primary", use_container_width=True):
             "inputs": user_inputs,
             "targets": user_targets
         },
-        "initial_state": st.session_state.network_data
+        "initial_state": cleaned_network_state 
     }
     
     # 3. Write to config.json
