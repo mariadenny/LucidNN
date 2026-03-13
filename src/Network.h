@@ -20,11 +20,14 @@ public:
     double computeMSE(const std::vector<double>& output, const std::vector<double>& target);
     void backward(const std::vector<double>& target, double learning_rate);
     nlohmann::ordered_json trainAndReturnHistory(
-        const std::vector<double>& input,
-        const std::vector<double>& target,
+        const std::vector<std::vector<double>>& inputs,
+        const std::vector<std::vector<double>>& targets,
         int epochs,
         double learning_rate
     );
+
+    void saveModel(const std::string& filename);
+    void loadFullModel(const std::string& filename);
 };
 
 #endif

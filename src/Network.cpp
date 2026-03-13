@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <nlohmann/json.hpp>
+#include <fstream> 
 
 void Network::initNetwork(
     int input_size,
@@ -53,13 +54,14 @@ void Network::printStructure() const {
         std::cout << std::endl;
     }
 }
-// --- ADDED IMPLEMENTATION ---
+
 void Network::setNeuronParams(int layer_idx, int neuron_idx, double bias, const std::vector<double>& weights) {
     if (layer_idx < 0 || layer_idx >= layers.size()) return;
     if (neuron_idx < 0 || neuron_idx >= layers[layer_idx].neurons.size()) return;
     layers[layer_idx].neurons[neuron_idx].bias = bias;
     layers[layer_idx].neurons[neuron_idx].weights = weights;
 }
+
 std::vector<double> Network::forward(const std::vector<double>& input) {
 
     // Set input layer activations
@@ -76,7 +78,6 @@ std::vector<double> Network::forward(const std::vector<double>& input) {
         for (size_t n = 0; n < current.neurons.size(); ++n) {
 
             Neuron& neuron = current.neurons[n];
-
             double z = neuron.bias;
 
             for (size_t w = 0; w < neuron.weights.size(); ++w) {
@@ -84,8 +85,7 @@ std::vector<double> Network::forward(const std::vector<double>& input) {
             }
 
             neuron.z_value = z;
-            neuron.activation =
-                Activation::activate(z, current.activationType);
+            neuron.activation = Activation::activate(z, current.activationType);
         }
     }
 
@@ -100,109 +100,152 @@ std::vector<double> Network::forward(const std::vector<double>& input) {
 
 double Network::computeMSE(const std::vector<double>& output,
                            const std::vector<double>& target) {
-
     double mse = 0.0;
-
     for (size_t i = 0; i < output.size(); ++i) {
         double diff = output[i] - target[i];
         mse += diff * diff;
     }
-
     return mse / output.size();
 }
 
-void Network::backward(const std::vector<double>& target,
-                       double learning_rate) {
+void Network::backward(const std::vector<double>& target, double learning_rate) {
 
-    // Vector to store deltas for each layer
     std::vector<std::vector<double>> deltas(layers.size());
 
     // --- Output layer ---
     size_t L = layers.size() - 1;
-
     deltas[L].resize(layers[L].neurons.size());
 
     for (size_t n = 0; n < layers[L].neurons.size(); ++n) {
-
         Neuron& neuron = layers[L].neurons[n];
-
         double error = neuron.activation - target[n];
-
-        double delta = error *
-            Activation::derivative(neuron.z_value,
-                                   layers[L].activationType);
-
+        double delta = error * Activation::derivative(neuron.z_value, layers[L].activationType);
+        
         deltas[L][n] = delta;
+        neuron.delta = delta; // <-- NEW: Store delta in neuron for visualization
     }
 
     // --- Hidden layers ---
     for (int l = L - 1; l > 0; --l) {
-
         deltas[l].resize(layers[l].neurons.size());
 
         for (size_t i = 0; i < layers[l].neurons.size(); ++i) {
-
             double sum = 0.0;
-
             for (size_t j = 0; j < layers[l + 1].neurons.size(); ++j) {
-                sum += layers[l + 1].neurons[j].weights[i]
-                       * deltas[l + 1][j];
+                sum += layers[l + 1].neurons[j].weights[i] * deltas[l + 1][j];
             }
-
-            double delta = sum *
-                Activation::derivative(
-                    layers[l].neurons[i].z_value,
-                    layers[l].activationType);
-
+            double delta = sum * Activation::derivative(layers[l].neurons[i].z_value, layers[l].activationType);
+            
             deltas[l][i] = delta;
+            layers[l].neurons[i].delta = delta; // <-- NEW: Store delta in neuron for visualization
         }
     }
 
     // --- Update weights and biases ---
     for (size_t l = 1; l < layers.size(); ++l) {
-
         for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
-
             Neuron& neuron = layers[l].neurons[n];
-
             neuron.bias -= learning_rate * deltas[l][n];
 
             for (size_t w = 0; w < neuron.weights.size(); ++w) {
-                neuron.weights[w] -= learning_rate *
-                    deltas[l][n] *
-                    layers[l - 1].neurons[w].activation;
+                neuron.weights[w] -= learning_rate * deltas[l][n] * layers[l - 1].neurons[w].activation;
             }
         }
     }
 }
 
+void Network::saveModel(const std::string& filename) {
+    nlohmann::json model;
+
+    model["network"]["input_size"] = layers[0].neurons.size();
+    model["network"]["hidden_layers"] = nlohmann::json::array();
+
+    for (size_t l = 1; l < layers.size() - 1; ++l) {
+        nlohmann::json layer_info;
+        layer_info["neurons"] = layers[l].neurons.size();
+        layer_info["activation"] = Activation::toString(layers[l].activationType);
+        model["network"]["hidden_layers"].push_back(layer_info);
+    }
+
+    size_t last = layers.size() - 1;
+    model["network"]["output_layer"]["neurons"] = layers[last].neurons.size();
+    model["network"]["output_layer"]["activation"] = Activation::toString(layers[last].activationType);
+
+    for (size_t l = 1; l < layers.size(); ++l) {
+        for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
+            std::string key = "L" + std::to_string(l) + "_N" + std::to_string(n);
+            model["weights"][key]["bias"] = layers[l].neurons[n].bias;
+            model["weights"][key]["weights"] = layers[l].neurons[n].weights;
+        }
+    }
+
+    std::ofstream out(filename);
+    out << model.dump(4);
+}
+
+void Network::loadFullModel(const std::string& filename) {
+    std::ifstream in(filename);
+    nlohmann::json model;
+    in >> model;
+
+    int input_size = model["network"]["input_size"];
+    std::vector<std::pair<int, ActivationType>> hidden_layers;
+
+    for (auto& hl : model["network"]["hidden_layers"]) {
+        int neurons = hl["neurons"];
+        ActivationType act = Activation::fromString(hl["activation"]);
+        hidden_layers.push_back({neurons, act});
+    }
+
+    int out_neurons = model["network"]["output_layer"]["neurons"];
+    ActivationType out_act = Activation::fromString(model["network"]["output_layer"]["activation"]);
+
+    initNetwork(input_size, hidden_layers, {out_neurons, out_act});
+
+    for (size_t l = 1; l < layers.size(); ++l) {
+        for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
+            std::string key = "L" + std::to_string(l) + "_N" + std::to_string(n);
+            layers[l].neurons[n].bias = model["weights"][key]["bias"];
+            layers[l].neurons[n].weights = model["weights"][key]["weights"].get<std::vector<double>>();
+        }
+    }
+}
+
 nlohmann::ordered_json Network::trainAndReturnHistory(
-    const std::vector<double>& input,
-    const std::vector<double>& target,
+    const std::vector<std::vector<double>>& inputs,
+    const std::vector<std::vector<double>>& targets,
     int epochs,
     double learning_rate
 ) {
-    // 1. Root object
     nlohmann::ordered_json result;
     result["status"] = "success";
-    result["history"] = nlohmann::json::array(); // Standard array is fine here
+    result["history"] = nlohmann::json::array();
+
+    if (inputs.size() != targets.size()) {
+        throw std::runtime_error("Inputs and targets size mismatch");
+    }
 
     for (int e = 1; e <= epochs; ++e) {
+        double total_error = 0.0;
+        std::vector<double> last_output;
 
-        std::vector<double> output = forward(input);
-        double error = computeMSE(output, target);
-        backward(target, learning_rate);
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            std::vector<double> output = forward(inputs[i]);
+            double error = computeMSE(output, targets[i]);
+            total_error += error;
+            backward(targets[i], learning_rate);
+            last_output = output; 
+        }
 
-        // 2. Snapshot object (Ensures epoch -> error -> actual -> expected)
+        double avg_error = total_error / inputs.size();
+
         nlohmann::ordered_json snapshot;
         snapshot["epoch"] = e;
-        snapshot["error"] = error;
-        snapshot["actual_output"] = output;
-        snapshot["expected_output"] = target;
+        snapshot["error"] = avg_error;
+        snapshot["actual_output"] = last_output;
+        snapshot["expected_output"] = targets.back();
 
-        // 3. Network state object
         nlohmann::ordered_json network_state;
-
         for (size_t l = 1; l < layers.size(); ++l) {
             for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
                 std::string key = "L" + std::to_string(l) + "_N" + std::to_string(n);
@@ -210,8 +253,42 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
                 network_state[key]["weights"] = layers[l].neurons[n].weights;
             }
         }
-
         snapshot["network_state"] = network_state;
+
+        // --- NEW: Extracting Math Details for Matrices ---
+        nlohmann::ordered_json math_details;
+        
+        // Save Input Layer Activations (A0)
+        std::vector<std::vector<double>> A0_matrix;
+        for (size_t i = 0; i < layers[0].neurons.size(); ++i) {
+            A0_matrix.push_back({layers[0].neurons[i].activation});
+        }
+        math_details["Layer_0"]["A"] = A0_matrix;
+
+        // Extract matrices for hidden and output layers
+        for (size_t l = 1; l < layers.size(); ++l) {
+            std::vector<std::vector<double>> W_matrix;
+            std::vector<std::vector<double>> B_matrix;
+            std::vector<std::vector<double>> Z_matrix;
+            std::vector<std::vector<double>> A_matrix;
+            std::vector<std::vector<double>> Delta_matrix;
+
+            for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
+                W_matrix.push_back(layers[l].neurons[n].weights);
+                B_matrix.push_back({layers[l].neurons[n].bias});
+                Z_matrix.push_back({layers[l].neurons[n].z_value});
+                A_matrix.push_back({layers[l].neurons[n].activation});
+                Delta_matrix.push_back({layers[l].neurons[n].delta});
+            }
+
+            math_details["Layer_" + std::to_string(l)]["W"] = W_matrix;
+            math_details["Layer_" + std::to_string(l)]["B"] = B_matrix;
+            math_details["Layer_" + std::to_string(l)]["Z"] = Z_matrix;
+            math_details["Layer_" + std::to_string(l)]["A"] = A_matrix;
+            math_details["Layer_" + std::to_string(l)]["Delta"] = Delta_matrix;
+        }
+        
+        snapshot["math_details"] = math_details;
         result["history"].push_back(snapshot);
     }
 

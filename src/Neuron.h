@@ -9,6 +9,7 @@ public:
     double bias;
     double activation;
     double z_value;
+    double delta; 
 
     Neuron(int num_inputs);
 };

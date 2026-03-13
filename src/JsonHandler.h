@@ -8,8 +8,8 @@
 #include <nlohmann/json.hpp>
 
 struct TrainingData {
-    std::vector<double> inputs;
-    std::vector<double> targets;
+    std::vector<std::vector<double>> inputs;
+    std::vector<std::vector<double>> targets;
 };
 
 struct NetworkConfig {
@@ -20,7 +20,7 @@ struct NetworkConfig {
     int epochs;
     double learning_rate;
 
-    TrainingData training_data;   // 🔥 ADD THIS
+    TrainingData training_data;
 
     nlohmann::json initial_state;
 };
