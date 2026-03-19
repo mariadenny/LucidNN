@@ -17,3 +17,46 @@ CMakeFiles/
 # OS junk
 .DS_Store
 Thumbs.db
+
+
+# =========================
+# Python
+# =========================
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =========================
+# Streamlit
+# =========================
+.streamlit/
+
+# =========================
+# Runtime generated files 
+# =========================
+config.json
+results.json
+model.json
+prediction.json
+
+
+# =========================
+# Logs / dumps
+# =========================
+*.log
+core
+core.*
+*.stackdump
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+
+# =========================
+# Linux temp
+# =========================
+*~
