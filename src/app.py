@@ -1,3 +1,13 @@
+import subprocess
+import os
+
+if not os.path.exists("build/app"):
+    print("Building C++ backend...")
+    subprocess.run("mkdir -p build", shell=True)
+    subprocess.run("cd build && cmake ..", shell=True)
+    subprocess.run("cd build && make", shell=True)
+
+
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
