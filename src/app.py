@@ -702,19 +702,7 @@ with t2:
                 margin=dict(l=0,r=0,t=10,b=0), height=220, hovermode='x unified')
             st.plotly_chart(fig3, use_container_width=True)
 
-        # ── Last epoch prediction vs target ──
-        st.markdown("<hr style='margin:10px 0 10px;border-color:rgba(44,26,8,.08);'/>",unsafe_allow_html=True)
-        st.markdown("<p style='font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 8px;'>Final Epoch — Last Sample</p>",unsafe_allow_html=True)
-        fc1, fc2, fc3 = st.columns(3)
-        with fc1:
-            st.metric("Final Epoch", last["epoch"])
-            st.metric("Final MSE",   f"{last['error']:.6f}")
-        with fc2:
-            st.markdown("<p style='font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 4px;'>Prediction</p>",unsafe_allow_html=True)
-            st.code(str([round(x,4) for x in last.get("actual_output",[])]))
-        with fc3:
-            st.markdown("<p style='font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 4px;'>Target</p>",unsafe_allow_html=True)
-            st.code(str([round(x,4) for x in last.get("expected_output",[])]))
+       
 
 # ════════════════════════════════════════════════════════════
 #  TAB 3 — MATRIX MATH
