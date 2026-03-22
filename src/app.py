@@ -707,9 +707,8 @@ with t2:
 # ════════════════════════════════════════════════════════════
 #  TAB 3 — MATRIX MATH
 # ════════════════════════════════════════════════════════════
-
 with t3:
-    if not st.session_state.get("results_loaded", False) or not step_data:
+    if not st.session_state.get("results_loaded", False) or not history:
         st.markdown("""
         <div style="background:#E8E2D8;border:1px solid rgba(44,26,8,.1);border-radius:8px;
              padding:40px;text-align:center;margin-top:16px;">
@@ -718,13 +717,18 @@ with t3:
           <p style="color:rgba(44,26,8,.4);font-size:13px;margin:0;">Train the model and load results first.</p>
         </div>
         """, unsafe_allow_html=True)
-
     else:
-
+        # 1. ADD A NATIVE STREAMLIT SLIDER HERE
+        total_epochs = len(history)
+        math_epoch = st.slider("Select Epoch to Inspect Math", min_value=1, max_value=total_epochs, value=total_epochs, step=1, key="math_slider")
+        
+        # 2. GRAB THE DATA FOR THE SELECTED EPOCH
+        step_data = history[math_epoch - 1]
+        
         st.markdown(f"""
         <div style="margin-bottom:14px;">
           <p style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.3);margin:0 0 3px;">Mathematical Transformations</p>
-          <h2 style="font-family:'DM Serif Display',serif;color:#2C1A08;margin:0;">Epoch {cur_epoch}</h2>
+          <h2 style="font-family:'DM Serif Display',serif;color:#2C1A08;margin:0;">Epoch {math_epoch}</h2>
           <p style="color:rgba(44,26,8,.38);font-size:12px;margin:3px 0 0;">Matrix math for the last processed sample</p>
         </div>
         """, unsafe_allow_html=True)
@@ -735,7 +739,6 @@ with t3:
             st.info("No math_details found in results.json for this epoch.")
         else:
             for l in range(1, len(topology)):
-
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px;">
                   <span style="width:6px;height:6px;border-radius:50%;background:#C05E00;display:inline-block;"></span>
@@ -747,7 +750,6 @@ with t3:
                 prev_layer_str = f"Layer_{l-1}"
 
                 if layer_str in math_details and prev_layer_str in math_details:
-
                     W = to_latex_matrix(math_details[layer_str]["W"])
                     A_prev = to_latex_matrix(math_details[prev_layer_str]["A"])
                     B = to_latex_matrix(math_details[layer_str]["B"])
