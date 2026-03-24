@@ -1,5 +1,5 @@
 # LucidNN
-🔗 **Live Demo:** (lucidnn-ml.streamlit.app)
+🔗 **Live Demo:** [Interactive-Neural-Network-Visualizer](https://lucidnn-ml.streamlit.app/)
 
 A neural network trainer and visualizer with a C++ backend and a Streamlit frontend.
 
