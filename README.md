@@ -1,4 +1,5 @@
 # LucidNN
+🔗 **Live Demo:** (lucidnn-ml.streamlit.app)
 
 A neural network trainer and visualizer with a C++ backend and a Streamlit frontend.
 
