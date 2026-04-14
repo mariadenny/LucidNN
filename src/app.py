@@ -522,7 +522,9 @@ step_data = history[cur_epoch-1] if history else None
 # ──────────────────────────────────────────────────────────────
 @st.dialog("Help - Demo Video")
 def show_help_video():
-    st.video("LucidNN Demo Video_Compressed.mp4")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    video_path = os.path.join(current_dir, "LucidNN Demo Video_Compressed.mp4")
+    st.video(video_path)
 
 header_c1, header_c2, header_c3 = st.columns([1, 8, 1])
 with header_c1:
@@ -537,7 +539,7 @@ with header_c2:
      display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
   <span style="font-family:'DM Serif Display',serif;font-size:2.1rem;color:#2C1A08;letter-spacing:-.02em;line-height:1;">LucidNN</span>
   <span style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#C05E00;font-weight:500;
-               padding:3px 9px;border:1px solid #C05E00;border-radius:2px;">v1.0</span>
+                padding:3px 9px;border:1px solid #C05E00;border-radius:2px;">v1.0</span>
   <span style="font-size:12px;color:rgba(44,26,8,.3);letter-spacing:.04em;text-transform:uppercase;">
         Neural Network Designer &amp; Educational Visualizer</span>
 </div>""",unsafe_allow_html=True)
