@@ -62,6 +62,33 @@ void Network::setNeuronParams(int layer_idx, int neuron_idx, double bias, const 
     layers[layer_idx].neurons[neuron_idx].weights = weights;
 }
 
+void Network::calculateNormalization(const std::vector<std::vector<double>>& inputs) {
+    if (inputs.empty()) return;
+    int features = inputs[0].size();
+    input_mins.assign(features, std::numeric_limits<double>::max());
+    input_maxs.assign(features, std::numeric_limits<double>::lowest());
+
+    for (const auto& row : inputs) {
+        for (size_t i = 0; i < features; ++i) {
+            if (row[i] < input_mins[i]) input_mins[i] = row[i];
+            if (row[i] > input_maxs[i]) input_maxs[i] = row[i];
+        }
+    }
+}
+
+std::vector<double> Network::normalize(const std::vector<double>& input) const {
+    if (input_mins.empty() || input_maxs.empty() || input.size() != input_mins.size()) return input;
+    std::vector<double> norm(input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        if (input_maxs[i] == input_mins[i]) {
+            norm[i] = input[i]; // avoid division by 0
+        } else {
+            norm[i] = (input[i] - input_mins[i]) / (input_maxs[i] - input_mins[i]);
+        }
+    }
+    return norm;
+}
+
 std::vector<double> Network::forward(const std::vector<double>& input) {
 
     // Set input layer activations
@@ -108,7 +135,7 @@ double Network::computeMSE(const std::vector<double>& output,
     return mse / output.size();
 }
 
-void Network::backward(const std::vector<double>& target, double learning_rate) {
+void Network::accumulateGradients(const std::vector<double>& target) {
 
     std::vector<std::vector<double>> deltas(layers.size());
 
@@ -122,7 +149,7 @@ void Network::backward(const std::vector<double>& target, double learning_rate) 
         double delta = error * Activation::derivative(neuron.z_value, layers[L].activationType);
         
         deltas[L][n] = delta;
-        neuron.delta = delta; // <-- NEW: Store delta in neuron for visualization
+        neuron.delta = delta;
     }
 
     // --- Hidden layers ---
@@ -137,18 +164,37 @@ void Network::backward(const std::vector<double>& target, double learning_rate) 
             double delta = sum * Activation::derivative(layers[l].neurons[i].z_value, layers[l].activationType);
             
             deltas[l][i] = delta;
-            layers[l].neurons[i].delta = delta; // <-- NEW: Store delta in neuron for visualization
+            layers[l].neurons[i].delta = delta; 
         }
     }
 
-    // --- Update weights and biases ---
+    // --- Accumulate gradients ---
     for (size_t l = 1; l < layers.size(); ++l) {
         for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
             Neuron& neuron = layers[l].neurons[n];
-            neuron.bias -= learning_rate * deltas[l][n];
+            if (neuron.grad_weights.size() < neuron.weights.size()) {
+                neuron.grad_weights.resize(neuron.weights.size(), 0.0);
+            }
+            neuron.grad_bias += deltas[l][n];
 
             for (size_t w = 0; w < neuron.weights.size(); ++w) {
-                neuron.weights[w] -= learning_rate * deltas[l][n] * layers[l - 1].neurons[w].activation;
+                neuron.grad_weights[w] += deltas[l][n] * layers[l - 1].neurons[w].activation;
+            }
+        }
+    }
+}
+
+void Network::applyGradients(double learning_rate, int batch_size) {
+    if (batch_size <= 0) batch_size = 1;
+    for (size_t l = 1; l < layers.size(); ++l) {
+        for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
+            Neuron& neuron = layers[l].neurons[n];
+            neuron.bias -= learning_rate * (neuron.grad_bias / batch_size);
+            neuron.grad_bias = 0.0;
+
+            for (size_t w = 0; w < neuron.weights.size(); ++w) {
+                neuron.weights[w] -= learning_rate * (neuron.grad_weights[w] / batch_size);
+                neuron.grad_weights[w] = 0.0;
             }
         }
     }
@@ -158,6 +204,10 @@ void Network::saveModel(const std::string& filename) {
     nlohmann::json model;
 
     model["network"]["input_size"] = layers[0].neurons.size();
+    if (!input_mins.empty()) {
+        model["network"]["input_mins"] = input_mins;
+        model["network"]["input_maxs"] = input_maxs;
+    }
     model["network"]["hidden_layers"] = nlohmann::json::array();
 
     for (size_t l = 1; l < layers.size() - 1; ++l) {
@@ -189,6 +239,11 @@ void Network::loadFullModel(const std::string& filename) {
     in >> model;
 
     int input_size = model["network"]["input_size"];
+    if (model["network"].contains("input_mins")) {
+        input_mins = model["network"]["input_mins"].get<std::vector<double>>();
+        input_maxs = model["network"]["input_maxs"].get<std::vector<double>>();
+    }
+    
     std::vector<std::pair<int, ActivationType>> hidden_layers;
 
     for (auto& hl : model["network"]["hidden_layers"]) {
@@ -215,7 +270,8 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
     const std::vector<std::vector<double>>& inputs,
     const std::vector<std::vector<double>>& targets,
     int epochs,
-    double learning_rate
+    double learning_rate,
+    int batch_size
 ) {
     nlohmann::ordered_json result;
     result["status"] = "success";
@@ -224,16 +280,29 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
     if (inputs.size() != targets.size()) {
         throw std::runtime_error("Inputs and targets size mismatch");
     }
+    
+    calculateNormalization(inputs);
+    
+    if (batch_size <= 0) batch_size = 1;
 
     for (int e = 1; e <= epochs; ++e) {
         double total_error = 0.0;
         std::vector<double> last_output;
+        int current_batch_count = 0;
 
         for (size_t i = 0; i < inputs.size(); ++i) {
-            std::vector<double> output = forward(inputs[i]);
+            std::vector<double> norm_input = normalize(inputs[i]);
+            std::vector<double> output = forward(norm_input);
             double error = computeMSE(output, targets[i]);
             total_error += error;
-            backward(targets[i], learning_rate);
+            
+            accumulateGradients(targets[i]);
+            current_batch_count++;
+            
+            if (current_batch_count == batch_size || i == inputs.size() - 1) {
+                applyGradients(learning_rate, current_batch_count);
+                current_batch_count = 0;
+            }
             last_output = output; 
         }
 

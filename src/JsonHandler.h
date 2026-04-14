@@ -19,6 +19,7 @@ struct NetworkConfig {
 
     int epochs;
     double learning_rate;
+    int batch_size;
 
     TrainingData training_data;
 

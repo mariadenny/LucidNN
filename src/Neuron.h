@@ -10,6 +10,9 @@ public:
     double activation;
     double z_value;
     double delta; 
+    
+    double grad_bias;
+    std::vector<double> grad_weights;
 
     Neuron(int num_inputs);
 };

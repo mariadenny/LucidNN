@@ -15,15 +15,25 @@ public:
 
     void printStructure() const;
 
+    std::vector<double> input_mins;
+    std::vector<double> input_maxs;
+
+    void calculateNormalization(const std::vector<std::vector<double>>& inputs);
+    std::vector<double> normalize(const std::vector<double>& input) const;
+
     void setNeuronParams(int layer_idx, int neuron_idx, double bias, const std::vector<double>& weights);
     std::vector<double> forward(const std::vector<double>& input);
     double computeMSE(const std::vector<double>& output, const std::vector<double>& target);
-    void backward(const std::vector<double>& target, double learning_rate);
+    
+    void accumulateGradients(const std::vector<double>& target);
+    void applyGradients(double learning_rate, int batch_size);
+
     nlohmann::ordered_json trainAndReturnHistory(
         const std::vector<std::vector<double>>& inputs,
         const std::vector<std::vector<double>>& targets,
         int epochs,
-        double learning_rate
+        double learning_rate,
+        int batch_size
     );
 
     void saveModel(const std::string& filename);

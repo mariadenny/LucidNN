@@ -35,11 +35,30 @@ int main(int argc, char* argv[]) {
                             config.hidden_layers,
                             config.output_layer);
 
+            if (!config.initial_state.is_null()) {
+                for (auto it = config.initial_state.begin(); it != config.initial_state.end(); ++it) {
+                    std::string key = it.key();
+                    if (key.length() > 3 && key.find('L') == 0 && key.find("_N") != std::string::npos) {
+                        int l_idx = std::stoi(key.substr(1, key.find('_') - 1));
+                        int n_idx = std::stoi(key.substr(key.find("_N") + 2));
+                        
+                        double bias = it.value().value("bias", 0.0);
+                        std::vector<double> weights;
+                        if (it.value().contains("weights") && it.value()["weights"].is_array()) {
+                            weights = it.value()["weights"].get<std::vector<double>>();
+                        }
+                        
+                        net.setNeuronParams(l_idx, n_idx, bias, weights);
+                    }
+                }
+            }
+
             auto results = net.trainAndReturnHistory(
                 config.training_data.inputs,
                 config.training_data.targets,
                 config.epochs,
-                config.learning_rate
+                config.learning_rate,
+                config.batch_size
             );
 
             // Save full training history
@@ -65,8 +84,9 @@ int main(int argc, char* argv[]) {
             std::vector<double> input =
                 request["input"].get<std::vector<double>>();
 
+            std::vector<double> norm_input = net.normalize(input);
             std::vector<double> output =
-                net.forward(input);
+                net.forward(norm_input);
 
             nlohmann::json result;
             result["status"] = "success";

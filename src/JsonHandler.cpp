@@ -70,9 +70,14 @@ NetworkConfig JsonHandler::parseInitNetwork(const std::string& file_path) {
         config.learning_rate =
             j["hyperparameters"]
             .value("learning_rate", 0.01);
+
+        config.batch_size =
+            j["hyperparameters"]
+            .value("batch_size", 1);
     } else {
         config.epochs = 100;
         config.learning_rate = 0.01;
+        config.batch_size = 1;
     }
 
     // -----------------------------

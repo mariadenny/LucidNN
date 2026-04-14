@@ -1,12 +1,35 @@
 import subprocess
 import os
+import platform
 
-if not os.path.exists("build/app"):
+# Handle cross-platform C++ executable name & path
+project_root = os.path.dirname(os.path.abspath(__file__))
+if not os.path.exists(os.path.join(project_root, "CMakeLists.txt")):
+    project_root = os.path.dirname(project_root)
+
+build_dir = os.path.join(project_root, "build")
+exe_name = "app.exe" if platform.system() == "Windows" else "app"
+
+exe_path_default = os.path.join(build_dir, exe_name)
+exe_path_msvc = os.path.join(build_dir, "Debug", exe_name)
+
+if not os.path.exists(build_dir):
+    os.makedirs(build_dir, exist_ok=True)
+
+if not os.path.exists(exe_path_default) and not os.path.exists(exe_path_msvc):
     print("Building C++ backend...")
-    subprocess.run("mkdir -p build", shell=True)
-    subprocess.run("cd build && cmake ..", shell=True)
-    subprocess.run("cd build && make", shell=True)
+    try:
+        subprocess.run(["cmake", ".."], cwd=build_dir, check=True)
+        subprocess.run(["cmake", "--build", ".", "--config", "Debug"], cwd=build_dir, check=True)
+    except Exception as e:
+        print(f"CMake Build Error: {e}")
 
+if os.path.exists(exe_path_msvc):
+    exe_path = exe_path_msvc
+elif os.path.exists(exe_path_default):
+    exe_path = exe_path_default
+else:
+    exe_path = os.path.join(build_dir, "app") # Fallback
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -135,8 +158,46 @@ div[data-testid="stVerticalBlock"]{background:transparent!important;}
 </style>
 """, unsafe_allow_html=True)
 
+
 # ──────────────────────────────────────────────────────────────
-#  SESSION STATE
+#  ROUTING / MULTI-PAGE SETUP
+# ──────────────────────────────────────────────────────────────
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
+
+def go_to_main():
+    st.session_state.page = "Main"
+    
+def go_to_home():
+    st.session_state.page = "Home"
+
+# ════════════════════════════════════════════════════════════
+#  HOME PAGE
+# ════════════════════════════════════════════════════════════
+if st.session_state.page == "Home":
+    st.markdown("""
+    <div style="text-align: center; margin-top: 80px; margin-bottom: 50px;">
+        <h1 style="font-family:'DM Serif Display',serif; color:#2C1A08; font-size: 3.5rem; margin-bottom: 0;">LucidNN</h1>
+        <h3 style="color:rgba(44,26,8,.6); font-weight: normal; font-size: 1.2rem; letter-spacing: 0.05em; text-transform: uppercase;">An Interactive Neural Network Visualisation tool</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        st.markdown("<p style='text-align:center; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#C05E00; margin-bottom: 5px; font-weight: 600;'>Select Module</p>", unsafe_allow_html=True)
+        if st.button("Regression Model ➔", use_container_width=True, type="primary"):
+            go_to_main()
+            st.rerun()
+            
+    st.stop()
+
+
+# ════════════════════════════════════════════════════════════
+#  MAIN APPLICATION
+# ════════════════════════════════════════════════════════════
+
+# ──────────────────────────────────────────────────────────────
+#  SESSION STATE FOR MAIN APP
 # ──────────────────────────────────────────────────────────────
 DEFAULTS = {
     'layers':           [{"id":0,"neurons":3}],
@@ -185,84 +246,7 @@ def reset_all():
         if os.path.exists(f): os.remove(f)
 
 # ──────────────────────────────────────────────────────────────
-#  HTML TABLE EDITOR  (light themed)
-# ──────────────────────────────────────────────────────────────
-def make_table_editor(x_cols, y_cols, inputs_data, targets_data):
-    all_cols  = x_cols + y_cols
-    rows_data = []
-    for i in range(max(len(inputs_data),1)):
-        row={}
-        for j,c in enumerate(x_cols):
-            row[c]=inputs_data[i][j] if i<len(inputs_data) and j<len(inputs_data[i]) else 0.
-        for j,c in enumerate(y_cols):
-            row[c]=targets_data[i][j] if i<len(targets_data) and j<len(targets_data[i]) else 0.
-        rows_data.append(row)
-
-    return f"""<!DOCTYPE html><html><head>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-html,body{{background:#EDE8DF;font-family:'DM Sans',sans-serif;color:#2C1A08;overflow:hidden;font-size:13px;}}
-table{{width:100%;border-collapse:collapse;}}
-thead th{{
-  background:#DED7CA;color:rgba(44,26,8,.5);font-size:10px;letter-spacing:.09em;
-  text-transform:uppercase;font-weight:500;padding:7px 8px;
-  border-bottom:1px solid rgba(44,26,8,.15);text-align:right;}}
-thead th:first-child{{text-align:left;}}
-thead th.x{{color:#C05E00;}} thead th.y{{color:#0A6B6F;}}
-tbody tr{{border-bottom:1px solid rgba(44,26,8,.07);}}
-tbody tr:hover{{background:rgba(44,26,8,.03);}}
-tbody td{{padding:3px 4px;}}
-tbody td input{{
-  width:100%;background:transparent;border:none;
-  border-bottom:1px solid rgba(44,26,8,.12);
-  color:#2C1A08;font-size:12px;padding:4px 6px;
-  outline:none;font-family:'DM Sans',sans-serif;text-align:right;}}
-tbody td input:focus{{border-bottom:1.5px solid #0A6B6F;color:#C05E00;}}
-#bar{{display:flex;gap:5px;padding:6px 0 0;}}
-.btn{{flex:1;padding:5px 0;background:#E8E2D8;border:1px solid rgba(44,26,8,.18);
-  border-radius:3px;color:rgba(44,26,8,.6);font-size:11px;cursor:pointer;
-  font-family:'DM Sans',sans-serif;transition:all .13s;}}
-.btn:hover{{background:#DED7CA;color:#C05E00;border-color:#C05E00;}}
-.pri{{background:#0A6B6F;border-color:#0A6B6F;color:#fff;}}
-.pri:hover{{background:#0D8F94;border-color:#0D8F94;color:#fff;}}
-</style></head><body>
-<table><thead><tr id="hdr"></tr></thead><tbody id="body"></tbody></table>
-<div id="bar">
-  <button class="btn" onclick="addRow()">+ Row</button>
-  <button class="btn" onclick="rmRow()">− Row</button>
-  <button class="btn pri" id="applyBtn" onclick="send()">✓ Apply</button>
-</div>
-<script>
-const COLS={json.dumps(all_cols)},XCOLS={json.dumps(x_cols)},YCOLS={json.dumps(y_cols)};
-let rows={json.dumps(rows_data)};
-const hdr=document.getElementById('hdr');
-COLS.forEach(c=>{{const th=document.createElement('th');th.textContent=c;
-  th.className=XCOLS.includes(c)?'x':'y';hdr.appendChild(th);}});
-function render(){{
-  const b=document.getElementById('body');b.innerHTML='';
-  rows.forEach((row,ri)=>{{const tr=document.createElement('tr');
-    COLS.forEach(col=>{{const td=document.createElement('td');
-      const i=document.createElement('input');i.type='number';i.step='0.1';
-      i.value=row[col]??0;i.dataset.r=ri;i.dataset.c=col;
-      i.oninput=e=>{{rows[ri][col]=parseFloat(e.target.value)||0;}};
-      td.appendChild(i);tr.appendChild(td);}});b.appendChild(tr);}});
-}}
-render();
-function addRow(){{const r={{}};COLS.forEach(c=>r[c]=0);rows.push(r);render();}}
-function rmRow(){{if(rows.length>1){{rows.pop();render();}}}}
-function send(){{
-  const inp=rows.map(r=>XCOLS.map(c=>parseFloat(r[c])||0));
-  const tgt=rows.map(r=>YCOLS.map(c=>parseFloat(r[c])||0));
-  window.parent.postMessage({{type:'training_data',inputs:inp,targets:tgt}},'*');
-  const b=document.getElementById('applyBtn');
-  b.textContent='✓ Saved';setTimeout(()=>b.textContent='✓ Apply',1200);
-}}
-document.getElementById('body').addEventListener('change',send);
-send();
-</script></body></html>"""
-
-# ──────────────────────────────────────────────────────────────
-#  CANVAS COMPONENT  — light bg, fast slider, rich popup
+#  CANVAS COMPONENT
 # ──────────────────────────────────────────────────────────────
 def make_canvas(topology, init_state, history, height=440):
     topo_js       = json.dumps(topology)
@@ -396,8 +380,6 @@ def make_canvas(topology, init_state, history, height=440):
 
     return html + "<script>" + js_data + js_main + "</script></body></html>"
 
-
-
 # ──────────────────────────────────────────────────────────────
 #  SIDEBAR
 # ──────────────────────────────────────────────────────────────
@@ -412,12 +394,12 @@ with st.sidebar:
 
     with ta:
         st.markdown("<div style='height:4px'></div>",unsafe_allow_html=True)
-        input_nodes  = st.number_input("Input Nodes",  min_value=1,max_value=5,value=2,step=1)
-        output_nodes = st.number_input("Output Nodes", min_value=1,max_value=5,value=1,step=1)
+        input_nodes  = st.number_input("Input Nodes",  min_value=1,max_value=5,value=2,step=1, help="Number of features in your input data. Max 5.")
+        output_nodes = st.number_input("Output Nodes", min_value=1,max_value=5,value=1,step=1, help="Number of target outputs you want to predict. Max 5.")
         st.markdown("<hr style='margin:10px 0;border-color:rgba(44,26,8,.1);'/>",unsafe_allow_html=True)
         st.markdown("<p style='font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.36);margin:0 0 6px;'>Hidden Layers</p>",unsafe_allow_html=True)
         if st.button("+ Add Hidden Layer",use_container_width=True,
-                     disabled=len(st.session_state.layers)>=5):
+                     disabled=len(st.session_state.layers)>=5, help="Add up to 5 hidden layers to increase model capacity."):
             st.session_state.layer_counter+=1
             st.session_state.layers.append({"id":st.session_state.layer_counter,"neurons":3})
             st.rerun()
@@ -427,7 +409,7 @@ with st.sidebar:
             with c1:
                 st.session_state.layers[i]['neurons']=st.number_input(
                     f"Layer {i+1} Neurons",min_value=1,max_value=5,
-                    value=min(layer['neurons'],5),step=1,key=f"ln_{layer['id']}")
+                    value=min(layer['neurons'],5),step=1,key=f"ln_{layer['id']}", help=f"Number of neurons in Hidden Layer {i+1}. Max 5.")
             with c2:
                 st.markdown("<div style='height:24px'></div>",unsafe_allow_html=True)
                 if st.button("✕",key=f"del_{layer['id']}"): to_rm.append(i)
@@ -437,12 +419,13 @@ with st.sidebar:
 
     with th:
         st.markdown("<div style='height:4px'></div>",unsafe_allow_html=True)
-        activation = st.selectbox("Activation",["ReLU","Sigmoid","Tanh","Linear","Leaky ReLU"])
-        st.selectbox("Loss Function",["Mean Squared Error (MSE)"])
+        activation = st.selectbox("Activation",["ReLU","Sigmoid","Tanh","Linear","Leaky ReLU"], help="Activation function introduces non-linearity, allowing the network to learn complex patterns. (e.g. ReLU is standard, Sigmoid maps to 0-1 probabilities).")
+        st.selectbox("Loss Function",["Mean Squared Error (MSE)"], help="Metric to evaluate how far the model's predictions are from actual targets.")
         st.markdown("<hr style='margin:10px 0;border-color:rgba(44,26,8,.1);'/>",unsafe_allow_html=True)
-        epochs_s = st.slider("Epochs",min_value=10,max_value=5000,step=10,value=100)
+        epochs_s = st.slider("Epochs",min_value=10,max_value=5000,step=10,value=100, help="Number of complete passes through the training dataset. More epochs allow more learning but can cause overfitting.")
         lr = st.number_input("Learning Rate",min_value=0.0001,max_value=1.0,
-                              value=0.01,step=0.001,format="%.4f")
+                              value=0.01,step=0.001,format="%.4f", help="Step size for weight updates. High values learn faster but may be unstable; low values are stable but learn slowly.")
+        batch_size = st.number_input("Batch Size", min_value=1, max_value=256, value=1, step=1, help="Number of samples processed before updating the model's internal parameters.")
 
     with td:
         xc=[f"X{i}" for i in range(input_nodes)]
@@ -451,21 +434,32 @@ with st.sidebar:
         if st.session_state.get('_tk')!=tk:
             st.session_state['_tk']=tk
             if input_nodes==2 and output_nodes==1:
+                # Default XOR Data
                 st.session_state.training_inputs  = [[0.,0.],[0.,1.],[1.,0.],[1.,1.]]
                 st.session_state.training_targets = [[0.],[1.],[1.],[0.]]
             else:
                 st.session_state.training_inputs  = [[0.]*input_nodes  for _ in range(4)]
                 st.session_state.training_targets = [[0.]*output_nodes for _ in range(4)]
-        rc=len(st.session_state.training_inputs)
-        th_=max(140,48+rc*34+42)
-        components.html(make_table_editor(xc,yc,
-            st.session_state.training_inputs,
-            st.session_state.training_targets),
-            height=th_,scrolling=False)
-        u_inp=st.session_state.training_inputs
-        u_tgt=st.session_state.training_targets
+        
+        st.markdown("<p style='font-size:11px;color:rgba(44,26,8,.5); margin-bottom: 5px;'>Edit training data below. Double click to edit. Rows can be dynamically added/deleted.</p>", unsafe_allow_html=True)
+        
+        # Ensure we have clean 2D arrays before putting them in dataframe
+        safe_inp = st.session_state.training_inputs
+        safe_tgt = st.session_state.training_targets
+        
+        df = pd.DataFrame(
+            [inp + tgt for inp, tgt in zip(safe_inp, safe_tgt)],
+            columns=xc + yc
+        )
+        
+        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+        edited_df = edited_df.fillna(0.0) # Handle newly added empty rows gracefully
+        
+        # Save back to state for the backend call
+        u_inp = edited_df[xc].values.tolist()
+        u_tgt = edited_df[yc].values.tolist()
 
-    # ── ACTIONS ──────────────────────────────────────────────
+    # ── ACTIONS (Moved outside tabs so it is always visible) ──
     st.markdown("<hr style='margin:12px 0;border-color:rgba(44,26,8,.1);'/>",unsafe_allow_html=True)
     st.markdown("<p style='font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 7px;'>Actions</p>",unsafe_allow_html=True)
 
@@ -481,7 +475,7 @@ with st.sidebar:
             "type":"INIT_NETWORK",
             "network":{"input_size":input_nodes,"hidden_layers":hcfg,
                        "output_layer":{"neurons":output_nodes,"activation":activation.lower()}},
-            "hyperparameters":{"epochs":epochs_s,"learning_rate":lr},
+            "hyperparameters":{"epochs":epochs_s,"learning_rate":lr, "batch_size": batch_size},
             "training_data":{"inputs":u_inp,"targets":u_tgt},
             "initial_state":{k:v for k,v in st.session_state.network_data.items() if k in vk}
         }
@@ -489,7 +483,7 @@ with st.sidebar:
             with open("config.json","w") as f: json.dump(cfg,f,indent=4)
             
             with st.spinner("Training model in backend..."):
-                result = subprocess.run(["./build/app", "config.json"], capture_output=True, text=True)
+                result = subprocess.run([exe_path, "config.json"], capture_output=True, text=True)
                 
                 if result.returncode == 0 and os.path.exists("results.json"):
                     with open("results.json") as f:
@@ -502,9 +496,9 @@ with st.sidebar:
                     else:
                         st.error("Training completed, but 'status' was not success in results.json.")
                 else:
-                    st.error(f"Backend execution failed. Return code: {result.returncode}\n\nError output:\n{result.stderr}")
+                    st.error(f"Backend execution failed. Return code: {result.returncode}\\n\\nError output:\\n{result.stderr}")
         except Exception as e: 
-            st.error(f"Execution Error: {str(e)}. Make sure ./build/app exists and is executable.")
+            st.error(f"Execution Error: {str(e)}. Make sure {exe_path} exists and is executable.")
 
     st.markdown("<div style='height:4px'></div>",unsafe_allow_html=True)
 
@@ -526,7 +520,19 @@ step_data = history[cur_epoch-1] if history else None
 # ──────────────────────────────────────────────────────────────
 #  HEADER
 # ──────────────────────────────────────────────────────────────
-st.markdown("""
+@st.dialog("Help - Demo Video")
+def show_help_video():
+    st.video("LucidNN Demo Video_Compressed.mp4")
+
+header_c1, header_c2, header_c3 = st.columns([1, 8, 1])
+with header_c1:
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    if st.button("⬅ Home"):
+        go_to_home()
+        st.rerun()
+
+with header_c2:
+    st.markdown("""
 <div style="padding:.4rem 0 .9rem;border-bottom:1px solid rgba(44,26,8,.1);margin-bottom:.9rem;
      display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
   <span style="font-family:'DM Serif Display',serif;font-size:2.1rem;color:#2C1A08;letter-spacing:-.02em;line-height:1;">LucidNN</span>
@@ -535,6 +541,11 @@ st.markdown("""
   <span style="font-size:12px;color:rgba(44,26,8,.3);letter-spacing:.04em;text-transform:uppercase;">
         Neural Network Designer &amp; Educational Visualizer</span>
 </div>""",unsafe_allow_html=True)
+
+with header_c3:
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    if st.button("❓ Help"):
+        show_help_video()
 
 # ──────────────────────────────────────────────────────────────
 #  TABS
@@ -549,14 +560,12 @@ with t1:
               for k,v in st.session_state.network_data.items()}
     # Height: ctrl(50) + canvas(440) + charts if trained(700) + buffer(20)
     component_h = 50 + 440 + (700 if history else 0) + 20
-    # Cache-buster: Streamlit hashes the HTML string to decide whether to reuse
-    # the existing iframe or rebuild it. Without a unique token, reloading the
-    # same results.json returns the frozen cached iframe and JS never re-executes.
+    # Cache-buster
     _bust = hashlib.md5(f"{len(history)}-{topology}-{id(st.session_state.results_data)}-{st.session_state.results_loaded}".encode()).hexdigest()[:8]
     components.html(
         make_canvas(topology, init_s, history, height=440) + f"",
         height=component_h,
-        scrolling=False,  # MUST be False: True puts canvas in scroll container, breaks width detection
+        scrolling=False, 
     )
 
     st.markdown("<div style='height:6px'></div>",unsafe_allow_html=True)
@@ -596,7 +605,6 @@ with t2:
         last = history[-1]
         total_epochs = len(history)
 
-        # ── MSE loss curve — full history, all epochs ──
         st.markdown(f"<p style='font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 6px;'>MSE Loss over {total_epochs} Epochs</p>",unsafe_allow_html=True)
         fig = go.Figure()
         epochs_x = [s["epoch"] for s in history]
@@ -607,7 +615,6 @@ with t2:
             fill='tozeroy', fillcolor='rgba(192,94,0,.08)',
             name='MSE Loss',
             hovertemplate='Epoch %{x}<br>MSE: %{y:.6f}<extra></extra>'))
-        # start and end markers
         fig.add_trace(go.Scatter(
             x=[epochs_x[0], epochs_x[-1]],
             y=[errors_y[0], errors_y[-1]],
@@ -629,7 +636,6 @@ with t2:
             legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(size=10)))
         st.plotly_chart(fig, use_container_width=True)
 
-        # ── Summary metrics ──
         c1,c2,c3,c4 = st.columns(4)
         c1.metric("Total Epochs",   total_epochs)
         c2.metric("Initial MSE",    f"{errors_y[0]:.5f}")
@@ -639,7 +645,6 @@ with t2:
 
         st.markdown("<hr style='margin:16px 0 12px;border-color:rgba(44,26,8,.08);'/>",unsafe_allow_html=True)
 
-        # ── Bias evolution — one chart per layer, all neurons overlaid ──
         st.markdown("<p style='font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 8px;'>Bias Evolution per Layer</p>",unsafe_allow_html=True)
         colors_list = ['#C05E00','#0A6B6F','#B8860B','#8B0000','#2F6038','#6B3FA0','#1A5276']
         for li in range(1, len(topology)):
@@ -669,7 +674,6 @@ with t2:
                     margin=dict(l=0,r=0,t=28,b=0), height=200, hovermode='x unified')
                 st.plotly_chart(fig2, use_container_width=True)
 
-        # ── Weight evolution — pick a neuron ──
         st.markdown("<hr style='margin:14px 0 12px;border-color:rgba(44,26,8,.08);'/>",unsafe_allow_html=True)
         st.markdown("<p style='font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(44,26,8,.32);margin:0 0 8px;'>Weight Evolution — Select Neuron</p>",unsafe_allow_html=True)
         all_neurons = [f"L{l}_N{n}" for l in range(1,len(topology)) for n in range(topology[l])]
@@ -702,8 +706,6 @@ with t2:
                 margin=dict(l=0,r=0,t=10,b=0), height=220, hovermode='x unified')
             st.plotly_chart(fig3, use_container_width=True)
 
-       
-
 # ════════════════════════════════════════════════════════════
 #  TAB 3 — MATRIX MATH
 # ════════════════════════════════════════════════════════════
@@ -718,11 +720,9 @@ with t3:
         </div>
         """, unsafe_allow_html=True)
     else:
-        # 1. ADD A NATIVE STREAMLIT SLIDER HERE
         total_epochs = len(history)
         math_epoch = st.slider("Select Epoch to Inspect Math", min_value=1, max_value=total_epochs, value=total_epochs, step=1, key="math_slider")
         
-        # 2. GRAB THE DATA FOR THE SELECTED EPOCH
         step_data = history[math_epoch - 1]
         
         st.markdown(f"""
@@ -768,6 +768,7 @@ with t3:
                     st.latex(rf"\delta^{{({l})}} = {Delta}")
 
                     st.markdown("<hr>", unsafe_allow_html=True)
+
 # ════════════════════════════════════════════════════════════
 #  TAB 4 — PREDICTIONS
 # ════════════════════════════════════════════════════════════
@@ -785,7 +786,6 @@ with t4:
             preds.append(st.number_input(f"Feature X{i}",value=0.0,step=0.1,key=f"pi_{i}"))
     st.markdown("<div style='height:6px'></div>",unsafe_allow_html=True)
     
-    # Combined prediction into a single button
     if st.button("Run Prediction", type="primary", use_container_width=True):
         if os.path.exists("prediction.json"): os.remove("prediction.json")
         if "pr" in st.session_state: del st.session_state["pr"]
@@ -794,7 +794,7 @@ with t4:
                 json.dump({"type":"PREDICT","input":preds},f,indent=4)
             
             with st.spinner("Running inference via backend..."):
-                result = subprocess.run(["./build/app", "predict_request.json"], capture_output=True, text=True)
+                result = subprocess.run([exe_path, "predict_request.json"], capture_output=True, text=True)
                 
                 if result.returncode == 0 and os.path.exists("prediction.json"):
                     with open("prediction.json") as f: 
