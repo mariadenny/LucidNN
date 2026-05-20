@@ -522,7 +522,7 @@ step_data = history[cur_epoch-1] if history else None
 # ──────────────────────────────────────────────────────────────
 @st.dialog("Help - Demo Video")
 def show_help_video():
-    video_path = os.path.join(project_root, "LucidNN Tutorial.mp4")
+    video_path = Path(__file__).parent / "LucidNN Tutorial.mp4"
     if os.path.exists(video_path):
         st.video(video_path)
     else:
