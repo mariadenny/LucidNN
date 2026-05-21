@@ -290,6 +290,8 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
         std::vector<double> last_output;
         int current_batch_count = 0;
 
+        nlohmann::ordered_json math_details; // Declare here for the snapshot
+
         for (size_t i = 0; i < inputs.size(); ++i) {
             std::vector<double> norm_input = normalize(inputs[i]);
             std::vector<double> output = forward(norm_input);
@@ -299,6 +301,40 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
             accumulateGradients(targets[i]);
             current_batch_count++;
             
+            // --- FIX: Capture math state BEFORE weights are updated ---
+            if (i == inputs.size() - 1) {
+                // Save Input Layer Activations (A0)
+                std::vector<std::vector<double>> A0_matrix;
+                for (size_t j = 0; j < layers[0].neurons.size(); ++j) {
+                    A0_matrix.push_back({layers[0].neurons[j].activation});
+                }
+                math_details["Layer_0"]["A"] = A0_matrix;
+
+                // Extract matrices for hidden and output layers
+                for (size_t l = 1; l < layers.size(); ++l) {
+                    std::vector<std::vector<double>> W_matrix;
+                    std::vector<std::vector<double>> B_matrix;
+                    std::vector<std::vector<double>> Z_matrix;
+                    std::vector<std::vector<double>> A_matrix;
+                    std::vector<std::vector<double>> Delta_matrix;
+
+                    for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
+                        W_matrix.push_back(layers[l].neurons[n].weights);
+                        B_matrix.push_back({layers[l].neurons[n].bias});
+                        Z_matrix.push_back({layers[l].neurons[n].z_value});
+                        A_matrix.push_back({layers[l].neurons[n].activation});
+                        Delta_matrix.push_back({layers[l].neurons[n].delta});
+                    }
+
+                    math_details["Layer_" + std::to_string(l)]["W"] = W_matrix;
+                    math_details["Layer_" + std::to_string(l)]["B"] = B_matrix;
+                    math_details["Layer_" + std::to_string(l)]["Z"] = Z_matrix;
+                    math_details["Layer_" + std::to_string(l)]["A"] = A_matrix;
+                    math_details["Layer_" + std::to_string(l)]["Delta"] = Delta_matrix;
+                }
+            }
+            // -----------------------------------------------------------
+
             if (current_batch_count == batch_size || i == inputs.size() - 1) {
                 applyGradients(learning_rate, current_batch_count);
                 current_batch_count = 0;
@@ -323,41 +359,8 @@ nlohmann::ordered_json Network::trainAndReturnHistory(
             }
         }
         snapshot["network_state"] = network_state;
-
-        // --- NEW: Extracting Math Details for Matrices ---
-        nlohmann::ordered_json math_details;
+        snapshot["math_details"] = math_details; // Attach the captured state
         
-        // Save Input Layer Activations (A0)
-        std::vector<std::vector<double>> A0_matrix;
-        for (size_t i = 0; i < layers[0].neurons.size(); ++i) {
-            A0_matrix.push_back({layers[0].neurons[i].activation});
-        }
-        math_details["Layer_0"]["A"] = A0_matrix;
-
-        // Extract matrices for hidden and output layers
-        for (size_t l = 1; l < layers.size(); ++l) {
-            std::vector<std::vector<double>> W_matrix;
-            std::vector<std::vector<double>> B_matrix;
-            std::vector<std::vector<double>> Z_matrix;
-            std::vector<std::vector<double>> A_matrix;
-            std::vector<std::vector<double>> Delta_matrix;
-
-            for (size_t n = 0; n < layers[l].neurons.size(); ++n) {
-                W_matrix.push_back(layers[l].neurons[n].weights);
-                B_matrix.push_back({layers[l].neurons[n].bias});
-                Z_matrix.push_back({layers[l].neurons[n].z_value});
-                A_matrix.push_back({layers[l].neurons[n].activation});
-                Delta_matrix.push_back({layers[l].neurons[n].delta});
-            }
-
-            math_details["Layer_" + std::to_string(l)]["W"] = W_matrix;
-            math_details["Layer_" + std::to_string(l)]["B"] = B_matrix;
-            math_details["Layer_" + std::to_string(l)]["Z"] = Z_matrix;
-            math_details["Layer_" + std::to_string(l)]["A"] = A_matrix;
-            math_details["Layer_" + std::to_string(l)]["Delta"] = Delta_matrix;
-        }
-        
-        snapshot["math_details"] = math_details;
         result["history"].push_back(snapshot);
     }
 
