@@ -185,7 +185,6 @@ if st.session_state.page == "Home":
     
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        st.markdown("<p style='text-align:center; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#98FB98; margin-bottom: 5px; font-weight: 600;'>Select Module</p>", unsafe_allow_html=True)
         if st.button("Feed Forward Networks", use_container_width=True, type="primary"):
             go_to_main()
             st.rerun()
